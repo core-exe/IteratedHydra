@@ -9,158 +9,149 @@
 #include "hydra.hpp"
 
 inline static void throw_exception_construct(){throw "Invalid Construction.";}
-static int flush_number_queue(std::queue<char> &_str){
-    if(_str.empty())
-        throw_exception_construct();
-    int i = _str.front() - '0';
-    _str.pop();
-    while(!_str.empty()){
-        i = i*10 + _str.front() - '0';
-        _str.pop();
-    }
+static int str_to_int(std::string num_string){
+    using namespace std;
+    stringstream sstr;
+    int i;
+    sstr << num_string;
+    sstr >> i;
     return i;
 }
 
-IteratedHydra::IteratedHydra(){
-    hydra_list = std::vector<int>();
-    chain = std::vector<int>();
-    length = 0;
+HydraTerm::HydraTerm(){
+    index = 0;
+    hydra = new IteratedHydra();
+    _is_final = hydra->is_empty();
 }
 
-IteratedHydra::IteratedHydra(std::vector<int> _hydra_list){
+HydraTerm::HydraTerm(const HydraTerm & _hydra_term){
+    index = _hydra_term.index;
+    hydra = new IteratedHydra(*_hydra_term.hydra);
+    _is_final = _hydra_term.is_final();
+}
+
+HydraTerm::HydraTerm(int _index){
+    index = _index;
+    hydra = new IteratedHydra();
+    _is_final = hydra->is_empty();
+}
+
+HydraTerm::HydraTerm(int _index, IteratedHydra* _hydra){
+    index = _index;
+    hydra = _hydra;
+    _is_final = hydra->is_empty();
+}
+
+HydraTerm::HydraTerm(int _index, std::string _hydra_string){
+    index = _index;
+    hydra = new IteratedHydra(_hydra_string);
+    _is_final = hydra->is_empty();
+}
+
+HydraTerm::~HydraTerm(){
+    delete hydra;
+}
+
+//TODO: is_valid for HydraTerm
+bool HydraTerm::is_valid() const{
+    return true;
+}
+
+bool HydraTerm::is_final() const{
+    return _is_final;
+}
+
+std::string HydraTerm::to_string(){
+    using namespace std;
+    string str = string("("), str_idx = string();
+    stringstream sstr;
+    sstr << index;
+    sstr >> str_idx;
+    str = str + str_idx;
+    if(_is_final)
+        return str + ")";
+    return str + "," + hydra->to_string() + ")";
+}
+
+IteratedHydra::IteratedHydra(){
+    using namespace std;
+    hydra_list = vector<HydraTerm*>();
+    initialize();
+}
+
+IteratedHydra::IteratedHydra(const IteratedHydra & _hydra){
+    hydra_list = _hydra.hydra_list;
+    initialize();
+}
+
+IteratedHydra::IteratedHydra(std::vector<HydraTerm*> _hydra_list){
+    using namespace std;
     hydra_list = _hydra_list;
-    length = _hydra_list.size();
-    chain = std::vector<int>();
-    if(!preprocess())
-        throw_exception_construct();
+    initialize();
 }
 
 IteratedHydra::IteratedHydra(std::string _string){
     using namespace std;
-    hydra_list = vector<int>();
-    chain = vector<int>();
-    int str_length = _string.size();
-    stack<char> char_stack = stack<char>();
-    queue<char> number_queue = queue<char>();
-    int status = 0;
-    /*
-    status = 0: not inside component;
-    status = 1: inside component;
-    */
-    for(string::iterator itr = _string.begin(); itr != _string.end(); itr++){
-        char c = *itr;
+    hydra_list = vector<HydraTerm*>();
+    //parse string
+    int depth = 0;
+    bool is_final = false;
+    int idx_begin, idx_end, subterm_begin, subterm_end;
+    int index;
+    for(int i = 0; i < _string.size(); i++){
+        char c = _string[i];
         if(c == '('){
-            if(status == 0){
-                status = 1;
-                continue;
-            } else if(status == 1){
-                throw_exception_construct();
+            depth++;
+            if(depth == 1){
+                is_final = true;
+                idx_begin = i + 1;
             }
-        } else if(c == ')'){
-            if(status == 1){
-                status = 0;
-                hydra_list.push_back(flush_number_queue(number_queue));
-                continue;
-            } else if(status == 0){
-                throw_exception_construct();
+        } else if(c == ')') {
+            depth--;
+            if(depth == 0){
+                if(is_final){
+                    idx_end = i;
+                    hydra_list.push_back(new HydraTerm(str_to_int(_string.substr(idx_begin, idx_end-idx_begin))));
+                } else {
+                    subterm_end = i;
+                    hydra_list.push_back(new HydraTerm(index, _string.substr(subterm_begin, subterm_end-subterm_begin)));
+                }
             }
-        } else if(c >= '0' && c <= '9'){
-            number_queue.push(c);
-        } else {
+        } else if(c == ',') {
+            if(depth == 1){
+                is_final = false;
+                idx_end = i;
+                index = str_to_int(_string.substr(idx_begin, idx_end-idx_begin));
+                subterm_begin = i + 1;
+            }
+        } else if(c >= '0' && c <= '9') {
+            continue;
+        } else if(c == ' ') {
+            continue;
+        } else 
             throw_exception_construct();
-        }
     }
-    if(status != 0)
-        throw_exception_construct();
-    length = hydra_list.size();
-    if(!preprocess())
-        throw_exception_construct();
+    initialize();
 }
 
-bool IteratedHydra::preprocess(){
-    if(hydra_list.size() == 0)
-        return true;
-    // valid
-    bool valid = true;
-    int segment = 0;
-    if(hydra_list[0] != 0)
-        return false;
-    for(int i = 1; i < hydra_list.size(); i++){
-        if(hydra_list[i]==0){
-            valid = valid && is_valid(segment, i);
-            segment = i;
-        }
-    }
-    valid = valid && is_valid(segment, hydra_list.size());
-    if(!valid)
-        return false;
-    //compute chain
-    chain = std::vector<int>(hydra_list[hydra_list.size()-1]+1);
-    int level = hydra_list[hydra_list.size()-1];
-    for(int i = hydra_list.size()-1; i >= 0; i--){
-        if(hydra_list[i] == level){
-            chain[level] = i;
-            level--;
-        }
-    }
-    return true;
-}
-
-bool IteratedHydra::is_valid(int l, int r){
-    if(r - l == 1)
-        return true;
-    int base = hydra_list[l];
-    int segment = l + 1;
-    bool valid = true;
-    if(hydra_list[segment] != base + 1)
-        return false;
-    for(int i = segment + 1; i < r; i++){
-        if(hydra_list[i] == base + 1){
-            valid = valid && is_valid(segment, i);
-            segment = i;
-        }
-    }
-    valid = valid && is_valid(segment, r);
-    return valid;
-}
-
-bool IteratedHydra::expandable(){
-    return length != 0 && hydra_list[length-1] != 0;
-}
-
-std::unique_ptr<IteratedHydra> IteratedHydra::expand(int n){
+IteratedHydra::~IteratedHydra(){
     using namespace std;
-    vector<int> new_hydra_list = vector<int>(hydra_list);
-    new_hydra_list.pop_back();
-    for(int _=0; _<n; _++){
-        for(int i=chain[chain.size()-2]; i<length-1; i++)
-            new_hydra_list.push_back(hydra_list[i]);
-    }
-    return unique_ptr<IteratedHydra>(new IteratedHydra(new_hydra_list));
+    for(vector<HydraTerm*>::iterator itr = hydra_list.begin(); itr != hydra_list.end(); itr++)
+        delete *itr;
 }
 
-bool IteratedHydra::is_successor(){
-    return length != 0 && hydra_list[length-1] == 0;
+void IteratedHydra::initialize(){
+    //TODO initializing the notation
 }
 
-std::unique_ptr<IteratedHydra> IteratedHydra::predecessor(){
-    using namespace std;
-    vector<int> new_hydra_list = vector<int>(hydra_list);
-    new_hydra_list.pop_back();
-    return unique_ptr<IteratedHydra>(new IteratedHydra(new_hydra_list));
+bool IteratedHydra::is_empty(){
+    return hydra_list.size() == 0;
 }
 
 std::string IteratedHydra::to_string(){
     using namespace std;
-    string s = string();
-    for(vector<int>::iterator itr=hydra_list.begin(); itr != hydra_list.end(); itr++){
-        stringstream sstr;
-        string str_number = string();
-        s = s + "(";
-        sstr << *itr;
-        sstr >> str_number;
-        s = s + str_number;
-        s = s + ")";
-    }
-    return s;
+    string str;
+    for(vector<HydraTerm*>::iterator itr = hydra_list.begin(); itr != hydra_list.end(); itr++)
+        str = str + (*itr)->to_string();
+    return str;
 }

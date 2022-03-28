@@ -7,6 +7,16 @@
 using namespace std;
 
 int main(){
+
+    IteratedHydra *a = new IteratedHydra(string(
+        "(0)(1,(0)(0))(1,(0)(1,(0)))"
+    ));
+
+    cout << a->to_string() << endl;
+
+    delete a;
+
+    /*
     int N = 3;
     cout << "expand with parameter n = " << N << endl;
 
@@ -36,6 +46,7 @@ int main(){
         delete hydra;
         cout << endl;
     }
+    */
     
     return 0;
 }
