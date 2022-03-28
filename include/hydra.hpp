@@ -1,8 +1,7 @@
 #pragma once
 #include <vector>
 #include <string>
-
-class Hydra;
+#include <memory>
 
 class IteratedHydra{
     private:
@@ -18,9 +17,10 @@ class IteratedHydra{
     IteratedHydra(std::vector<int> _hydra_list);
     IteratedHydra(std::string _string);
 
-    bool is_limit();
-    IteratedHydra* expand(int n);
-    IteratedHydra* predecessor();
+    bool expandable();
+    std::unique_ptr<IteratedHydra> expand(int n);
+    bool is_successor();
+    std::unique_ptr<IteratedHydra> predecessor();
 
     std::string to_string();
 };
