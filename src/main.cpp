@@ -6,22 +6,10 @@
 
 using namespace std;
 
-int main(){
-
-    IteratedHydra *a;
-    string s;
-    cin >> s;
-
-    a = new IteratedHydra(s);
-
-    cout << a->to_string() << endl << endl;
-
-    a->display_detail();
-
-    delete a;
-
-    /*
-    int N = 3;
+int main(){ 
+    cout << "expand parameter:" << endl;
+    int N;
+    cin >> N; 
     cout << "expand with parameter n = " << N << endl;
 
     while(true){
@@ -34,10 +22,10 @@ int main(){
         }
         catch(const char* error){
             cout << error << endl;
+            continue;
         }
-        cout << "Input Hydra: " << endl;
-        cout << hydra->to_string() << endl;
-        
+        //hydra->display_detail();
+
         bool is_successor = hydra->is_successor(), expandable = hydra->expandable();
         cout << "Is successor: " << is_successor << endl;
         if(is_successor)
@@ -50,7 +38,5 @@ int main(){
         delete hydra;
         cout << endl;
     }
-    */
-    
     return 0;
 }

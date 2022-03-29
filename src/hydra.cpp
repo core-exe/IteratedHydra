@@ -53,9 +53,8 @@ HydraTerm::~HydraTerm(){
     delete hydra;
 }
 
-//TODO: is_valid for HydraTerm
 bool HydraTerm::is_valid() const{
-    return true;
+    return hydra->is_finite();
 }
 
 bool HydraTerm::is_final() const{
@@ -86,8 +85,15 @@ IteratedHydra::IteratedHydra(){
 
 IteratedHydra::IteratedHydra(const IteratedHydra & _hydra){
     using namespace std;
-    vector<HydraTerm*> _hydra_list = _hydra.hydra_list;
-    initialize(_hydra_list);
+    length = _hydra.length;
+    hydra_list = _hydra.hydra_list;
+    root_0 = _hydra.root_0;
+    root_1 = _hydra.root_1;
+    chain_0 = _hydra.chain_0;
+    chain_1 = _hydra.chain_1;
+    transition_1 = _hydra.transition_1;
+    _is_empty = _hydra.is_empty();
+    _is_finite = _hydra.is_finite();
 }
 
 IteratedHydra::IteratedHydra(std::vector<HydraTerm*> _hydra_list){
@@ -141,11 +147,12 @@ IteratedHydra::IteratedHydra(std::string _string){
 
 IteratedHydra::~IteratedHydra(){
     using namespace std;
-    for(vector<HydraTerm*>::iterator itr = hydra_list.begin(); itr != hydra_list.end(); itr++)
-        delete *itr;
+    for(int i=0; i<length; i++){
+        delete hydra_list[i];
+    }
 }
 
-void IteratedHydra::_push_term(HydraTerm* hydra_term){
+void IteratedHydra::push_term(HydraTerm* hydra_term){
     using namespace std;
     hydra_list.push_back(hydra_term);
     if(!hydra_term->is_valid())
@@ -161,8 +168,6 @@ void IteratedHydra::_push_term(HydraTerm* hydra_term){
     }else if(hydra_term->index < chain_0.size()){
         while(hydra_term->index < chain_0.size())
             chain_0.pop_back();
-        while(chain_0[chain_0.size()-1] < chain_1[chain_1.size()-1])
-            chain_1.pop_back();
         root_0.push_back(chain_0[chain_0.size()-1]);
         chain_0.push_back(length);
     }else{
@@ -197,18 +202,66 @@ void IteratedHydra::_push_term(HydraTerm* hydra_term){
 
 void IteratedHydra::initialize(std::vector<HydraTerm*> _hydra_list){
     using namespace std;
+    length = 0;
     root_0 = vector<int>();
     root_1 = vector<int>();
     chain_0 = vector<int>();
     chain_1 = vector<int>();
     transition_1 = vector<HydraTerm*>();
+    _is_finite = true;
+    _is_empty = (_hydra_list.size() == 0);
     for(int i = 0; i < _hydra_list.size(); i++){
-        _push_term(_hydra_list[i]);
+        push_term(_hydra_list[i]);
+        if(_hydra_list[i]->index > 0)
+            _is_finite = false;
     }
 }
 
-bool IteratedHydra::is_empty(){
+bool IteratedHydra::expandable(){
+    return length != 0 && (*hydra_list.rbegin())->index != 0;
+}
+
+IteratedHydra* IteratedHydra::expand(int n){
+    using namespace std;
+    IteratedHydra* new_hydra_base = new IteratedHydra(vector<HydraTerm*>(hydra_list.begin(), hydra_list.end()-1));
+    if(hydra_list[length-1]->is_final()){
+        int repetition_pivot = *(chain_0.rbegin()+1);
+        for(int i=1; i<=n; i++){
+            for(int j=repetition_pivot; j<length-1; j++){
+                new_hydra_base->push_term(new HydraTerm(*hydra_list[j]));
+            }
+        }
+    }else if(hydra_list[length-1]->hydra->is_successor()){
+        int repetition_pivot = *(chain_1.rbegin()+1);
+        int delta = hydra_list[length-1]->index - hydra_list[repetition_pivot]->index;
+        for(int i=1; i<=n; i++){
+            for(int j=repetition_pivot; j<length-1; j++){
+                HydraTerm* new_term = new HydraTerm(hydra_list[j]->index+delta*i, new IteratedHydra(*(hydra_list[j]->hydra->predecessor())));
+                new_hydra_base->push_term(new_term);
+            }
+        }
+    }else{
+        // should not reach here.
+    }
+    return new_hydra_base;
+}
+
+
+bool IteratedHydra::is_successor(){
+    return length != 0 && (*hydra_list.rbegin())->index == 0;
+}
+
+IteratedHydra* IteratedHydra::predecessor(){
+    using namespace std;
+    return new IteratedHydra(vector<HydraTerm*>(hydra_list.begin(), hydra_list.end()-1));
+}
+
+bool IteratedHydra::is_empty() const{
     return hydra_list.size() == 0;
+}
+
+bool IteratedHydra::is_finite() const{
+    return _is_finite;
 }
 
 bool IteratedHydra::is_prefix_of(const IteratedHydra& other){

@@ -33,7 +33,6 @@ class IteratedHydra{
     private:
     bool _is_empty, _is_finite;
     void initialize(std::vector<HydraTerm*> _hydra_list);
-    void _push_term(HydraTerm* hydra_term);
 
     public:
     int length;
@@ -48,13 +47,14 @@ class IteratedHydra{
     IteratedHydra(std::string _string);
     ~IteratedHydra();
 
+    void push_term(HydraTerm* hydra_term);
+
     bool expandable();
-    std::unique_ptr<IteratedHydra> expand(int n);
+    IteratedHydra* expand(int n);
     bool is_successor();
-    std::unique_ptr<IteratedHydra> predecessor();
-    bool is_empty();
-    
-    bool is_finite();
+    IteratedHydra* predecessor();
+    bool is_empty() const;
+    bool is_finite() const;
 
     bool is_prefix_of(const IteratedHydra& other);
     bool operator==(const IteratedHydra& other);
