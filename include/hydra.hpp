@@ -23,17 +23,24 @@ class HydraTerm{
 
     bool is_valid() const;
     bool is_final() const;
+
+    bool operator==(const HydraTerm& other);
+
     std::string to_string();
 };
 
 class IteratedHydra{
     private:
     bool _is_empty, _is_finite;
-    void initialize();
+    void initialize(std::vector<HydraTerm*> _hydra_list);
+    void _push_term(HydraTerm* hydra_term);
 
     public:
     int length;
     std::vector<HydraTerm*> hydra_list;
+    std::vector<int> root_0, root_1;
+    std::vector<int> chain_0, chain_1;
+    std::vector<HydraTerm*> transition_1;
 
     IteratedHydra();
     IteratedHydra(const IteratedHydra & _hydra);
@@ -49,5 +56,10 @@ class IteratedHydra{
     
     bool is_finite();
 
-    std::string to_string();
+    bool is_prefix_of(const IteratedHydra& other);
+    bool operator==(const IteratedHydra& other);
+
+    std::string to_string() const;
+    void display_detail(int depth = 0);
 };
+

@@ -8,11 +8,15 @@ using namespace std;
 
 int main(){
 
-    IteratedHydra *a = new IteratedHydra(string(
-        "(0)(1,(0)(0))(1,(0)(1,(0)))"
-    ));
+    IteratedHydra *a;
+    string s;
+    cin >> s;
 
-    cout << a->to_string() << endl;
+    a = new IteratedHydra(s);
+
+    cout << a->to_string() << endl << endl;
+
+    a->display_detail();
 
     delete a;
 
