@@ -155,7 +155,6 @@ void IteratedHydra::_push_term(HydraTerm* hydra_term){
     if(hydra_term->index == 0){
         root_0.push_back(-1);
         chain_0=vector<int>({length});
-        chain_1=vector<int>();
     }else if(hydra_term->index == chain_0.size()){
         root_0.push_back(chain_0[chain_0.size()-1]);
         chain_0.push_back(length);
@@ -176,19 +175,22 @@ void IteratedHydra::_push_term(HydraTerm* hydra_term){
         chain_1=vector<int>({length});
         transition_1.push_back(&zero_term); // root transition
     }else{
-        int hydra_term_length = hydra_term->hydra->length;
-        if(hydra_term_length-1>=chain_1.size())
-            throw_exception_construct();
-        if(hydra_list[chain_1[hydra_term_length-1]]->hydra->is_prefix_of(*hydra_term->hydra)){
-            while(chain_1.size()>hydra_term_length)
-                chain_1.pop_back();
-            root_1.push_back(chain_1[chain_1.size()-1]);
-            transition_1.push_back(hydra_term->hydra->hydra_list[hydra_term_length-1]);
-            chain_1.push_back(length);
-        }else{
-            cout << "Not a prefix" << endl;
-            throw_exception_construct();
+        bool valid = true;
+        chain_1=vector<int>(hydra_term->hydra->length+1);
+        *chain_1.rbegin() = length;
+        int current_length = hydra_term->hydra->length-1;
+        for(int i=chain_0.size()-2; i>=0; i--){
+            if(current_length<0)
+                break;
+            if(hydra_list[chain_0[i]]->hydra->length == current_length && hydra_list[chain_0[i]]->hydra->is_prefix_of(*hydra_term->hydra)){
+                chain_1[current_length] = chain_0[i];
+                current_length--;
+            }
         }
+        root_1.push_back(chain_1[hydra_term->hydra->length-1]);
+        transition_1.push_back(*(hydra_term->hydra->hydra_list.rbegin()));
+        if(current_length!=-1)
+            throw_exception_construct();
     }
     length++;
 }
@@ -211,7 +213,6 @@ bool IteratedHydra::is_empty(){
 
 bool IteratedHydra::is_prefix_of(const IteratedHydra& other){
     using namespace std;
-
     if(length > other.length)
         return false;
     for(int i = 0; i < hydra_list.size(); i++){
