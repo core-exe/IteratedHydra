@@ -6,6 +6,7 @@
 #include <sstream>
 #include <memory>
 #include <iostream>
+#include <deque>
 #include "hydra.hpp"
 
 inline static void throw_exception_construct(){throw "Invalid Construction.";}
@@ -54,7 +55,7 @@ HydraTerm::~HydraTerm(){
 }
 
 bool HydraTerm::is_valid() const{
-    return hydra->is_finite();
+    return hydra->is_simple();
 }
 
 bool HydraTerm::is_final() const{
@@ -94,6 +95,7 @@ IteratedHydra::IteratedHydra(const IteratedHydra & _hydra){
     transition_1 = _hydra.transition_1;
     _is_empty = _hydra.is_empty();
     _is_finite = _hydra.is_finite();
+    _is_simple = _hydra.is_simple();
 }
 
 IteratedHydra::IteratedHydra(std::vector<HydraTerm*> _hydra_list){
@@ -178,9 +180,8 @@ void IteratedHydra::push_term(HydraTerm* hydra_term){
     if(hydra_term->hydra->is_empty()){
         root_1.push_back(-1);
         chain_1=vector<int>({length});
-        transition_1.push_back(&zero_term); // root transition
+        transition_1.push_back(new HydraTerm(zero_term)); // root transition
     }else{
-        bool valid = true;
         chain_1=vector<int>(hydra_term->hydra->length+1);
         *chain_1.rbegin() = length;
         int current_length = hydra_term->hydra->length-1;
@@ -194,8 +195,9 @@ void IteratedHydra::push_term(HydraTerm* hydra_term){
         }
         root_1.push_back(chain_1[hydra_term->hydra->length-1]);
         transition_1.push_back(*(hydra_term->hydra->hydra_list.rbegin()));
-        if(current_length!=-1)
+        if(current_length!=-1){
             throw_exception_construct();
+        }
     }
     length++;
 }
@@ -209,11 +211,14 @@ void IteratedHydra::initialize(std::vector<HydraTerm*> _hydra_list){
     chain_1 = vector<int>();
     transition_1 = vector<HydraTerm*>();
     _is_finite = true;
+    _is_simple = true;
     _is_empty = (_hydra_list.size() == 0);
     for(int i = 0; i < _hydra_list.size(); i++){
         push_term(_hydra_list[i]);
         if(_hydra_list[i]->index > 0)
             _is_finite = false;
+        if(!_hydra_list[i]->is_final())
+            _is_simple = false;
     }
 }
 
@@ -221,6 +226,17 @@ bool IteratedHydra::expandable(){
     return length != 0 && (*hydra_list.rbegin())->index != 0;
 }
 
+int IteratedHydra::expansion_length(){
+    int repetition_pivot;
+    if(hydra_list[length-1]->is_final()){
+        repetition_pivot = *(chain_0.rbegin()+1);
+    }else{
+        repetition_pivot = *(chain_1.rbegin()+1);
+    }
+    return length-1-repetition_pivot;
+}
+
+//potential memory leak
 IteratedHydra* IteratedHydra::expand(int n){
     using namespace std;
     IteratedHydra* new_hydra_base = new IteratedHydra(vector<HydraTerm*>(hydra_list.begin(), hydra_list.end()-1));
@@ -236,12 +252,77 @@ IteratedHydra* IteratedHydra::expand(int n){
         int delta = hydra_list[length-1]->index - hydra_list[repetition_pivot]->index;
         for(int i=1; i<=n; i++){
             for(int j=repetition_pivot; j<length-1; j++){
-                HydraTerm* new_term = new HydraTerm(hydra_list[j]->index+delta*i, new IteratedHydra(*(hydra_list[j]->hydra->predecessor())));
+                HydraTerm* new_term = new HydraTerm(hydra_list[j]->index+delta*i, new IteratedHydra(*(hydra_list[j]->hydra)));
                 new_hydra_base->push_term(new_term);
             }
         }
     }else{
-        // should not reach here.
+        int repetition_pivot = *(chain_1.rbegin()+1);
+        int repetition_index = hydra_list[repetition_pivot]->index;
+        int delta_1 = hydra_list[length-1]->hydra->expansion_length();
+        int delta_0 = hydra_list[length-1]->index - hydra_list[repetition_pivot]->index + delta_1 - 1;
+        vector<bool> is_chain_0 = vector<bool>(), is_chain_1 = vector<bool>();
+        vector<HydraTerm*> chain_transition_1 = vector<HydraTerm*>();
+        for(int i=0; i<length-1; i++){
+            is_chain_0.push_back(false);
+            is_chain_1.push_back(false);
+        }
+        for(int i=0; i<chain_0.size()-1; i++)
+            is_chain_0[chain_0[i]] = true;
+        for(int i=0; i<chain_1.size()-1; i++){
+            is_chain_1[chain_1[i]] = true;
+            chain_transition_1.push_back(transition_1[chain_1[i]]);
+        }
+        vector<deque<HydraTerm*>> transition_to_chain1 = vector<deque<HydraTerm*>>();
+        vector<int> connection_to_chain1 = vector<int>();
+        for(int j=repetition_pivot+1; j<length-1; j++){
+            int current_pos = j;
+            transition_to_chain1.push_back(deque<HydraTerm*>());
+            while(current_pos != -1 && !is_chain_1[current_pos]){
+                (*transition_to_chain1.rbegin()).push_front(transition_1[current_pos]);
+                current_pos = root_1[current_pos];
+            }
+            if(current_pos != -1)
+                connection_to_chain1.push_back(hydra_list[current_pos]->hydra->length);
+            else
+                connection_to_chain1.push_back(-1);
+        }
+        for(int i=1; i<=n; i++){
+            IteratedHydra* expanded_subterm = hydra_list[length-1]->hydra->expand(i);
+            int last_rep_pivot = expanded_subterm->length - delta_1;
+            // expand subterm
+            for(int j=1; j<=delta_1; j++){
+                int new_term_index = delta_0*(i-1)+(j-1)+hydra_list[length-1]->index;
+                IteratedHydra* new_term_hydra = new IteratedHydra(vector<HydraTerm*>(
+                        expanded_subterm->hydra_list.begin(),
+                        expanded_subterm->hydra_list.begin()+last_rep_pivot+j
+                    ));
+                
+                HydraTerm* new_term = new HydraTerm(new_term_index, new_term_hydra);
+
+                chain_transition_1.push_back(new HydraTerm(**(new_term->hydra->hydra_list.rbegin())));
+                new_hydra_base->push_term(new_term);
+            }
+
+            // repetition after the expansion
+            for(int j=repetition_pivot+1; j<length-1; j++){
+                /*
+                for every term in the repetition part,
+                get its connection towards the chain1, repeat the connection on the shifted chain1
+                shift amount is delta_1, index is shifted by delta_0
+                */
+                int new_index = hydra_list[j]->index + i*delta_0;
+                vector<HydraTerm*> new_term_hydra = vector<HydraTerm*>(
+                    chain_transition_1.begin()+1,
+                    chain_transition_1.begin()+connection_to_chain1[j-repetition_index-1] + i*delta_1+1
+                );
+                new_term_hydra.insert(std::end(new_term_hydra), std::begin(transition_to_chain1[j-repetition_index-1]), std::end(transition_to_chain1[j-repetition_index-1]));
+                HydraTerm* new_term = new HydraTerm(
+                    new_index, new IteratedHydra(new_term_hydra)
+                );
+                new_hydra_base->push_term(new_term);
+            }
+        }
     }
     return new_hydra_base;
 }
@@ -262,6 +343,10 @@ bool IteratedHydra::is_empty() const{
 
 bool IteratedHydra::is_finite() const{
     return _is_finite;
+}
+
+bool IteratedHydra::is_simple() const{
+    return _is_simple;
 }
 
 bool IteratedHydra::is_prefix_of(const IteratedHydra& other){
