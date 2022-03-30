@@ -31,7 +31,7 @@ class HydraTerm{
 
 class IteratedHydra{
     private:
-    bool _is_empty, _is_finite;
+    bool _is_empty, _is_finite, _is_simple;
     void initialize(std::vector<HydraTerm*> _hydra_list);
 
     public:
@@ -50,11 +50,13 @@ class IteratedHydra{
     void push_term(HydraTerm* hydra_term);
 
     bool expandable();
+    int expansion_length();
     IteratedHydra* expand(int n);
     bool is_successor();
     IteratedHydra* predecessor();
     bool is_empty() const;
     bool is_finite() const;
+    bool is_simple() const;
 
     bool is_prefix_of(const IteratedHydra& other);
     bool operator==(const IteratedHydra& other);
